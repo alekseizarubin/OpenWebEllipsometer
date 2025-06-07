@@ -1,7 +1,23 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from ellipsometer import Layer, ModelParams, group_measurements, predict_dataframe, fit_parameters
+from ellipsometer import (
+    Layer,
+    ModelParams,
+    group_measurements,
+    predict_dataframe,
+    fit_parameters,
+)
+
+
+def _rerun():
+    """Compatibility wrapper for Streamlit rerun."""
+    if hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+    elif hasattr(st, "rerun"):
+        st.rerun()
+    else:
+        raise RuntimeError("Streamlit rerun API not available")
 
 st.title("DIY-Ellipsometry fitter")
 
@@ -26,7 +42,7 @@ uploaded = st.file_uploader("Upload measurement CSV", type="csv")
 if uploaded is not None:
     df_up = pd.read_csv(uploaded)
     st.session_state["meas_df"] = pd.concat([st.session_state["meas_df"], df_up])
-    st.experimental_rerun()
+    _rerun()
 
 df = st.session_state["meas_df"].copy()
 if df.empty:
