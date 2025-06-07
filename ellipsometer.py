@@ -25,6 +25,10 @@ class ModelParams:
     n_sub: float = 1.5
     k_sub: float = 0.0
     intensity_scale: float = 1.0
+    intensity_offset: float = 0.0
+    polarizer_deg: float = 45.0
+    incidence_offset_deg: float = 0.0
+    analyzer_offset_deg: float = 0.0
 
     def substrate_n(self) -> complex:
         return complex(self.n_sub, self.k_sub)
@@ -79,7 +83,7 @@ def analyzer_intensity(wl_nm: float, inc_deg: float, analyzer_deg: float, params
         Optical stack parameters.
     """
     wl = wl_nm * 1e-9
-    theta0 = np.deg2rad(inc_deg)
+    theta0 = np.deg2rad(inc_deg + params.incidence_offset_deg)
     n_list = [complex(params.n_before, 0.0)]
     d_list = []
     for layer in params.layers:
@@ -90,9 +94,18 @@ def analyzer_intensity(wl_nm: float, inc_deg: float, analyzer_deg: float, params
     r_s = _layer_r(wl, theta0, n_list, d_list, "s")
     r_p = _layer_r(wl, theta0, n_list, d_list, "p")
 
-    A = np.deg2rad(analyzer_deg)
-    E = r_s * np.cos(A) + r_p * np.sin(A)
-    return params.intensity_scale * (np.abs(E) ** 2)
+    pol = np.deg2rad(params.polarizer_deg)
+    ana = np.deg2rad(analyzer_deg + params.analyzer_offset_deg)
+
+    inc_vec = np.array([np.cos(pol), np.sin(pol)])
+    ref_vec = np.array([r_p * inc_vec[0], r_s * inc_vec[1]])
+
+    cross = np.array([-np.sin(pol), np.cos(pol)])
+    rot = np.array([[np.cos(ana), -np.sin(ana)], [np.sin(ana), np.cos(ana)]])
+    ana_vec = rot @ cross
+
+    E = ref_vec[0] * ana_vec[0] + ref_vec[1] * ana_vec[1]
+    return params.intensity_offset + params.intensity_scale * (np.abs(E) ** 2)
 
 
 def group_measurements(df: pd.DataFrame) -> pd.DataFrame:
@@ -106,6 +119,29 @@ def group_measurements(df: pd.DataFrame) -> pd.DataFrame:
     out = grouped["intensity"].agg(["mean", "min", "max"]).reset_index()
     out = out.rename(columns={"mean": "intensity_mean", "min": "intensity_min", "max": "intensity_max"})
     return out
+
+
+def normalise_measurements(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalise intensities per ``(wavelength_nm, incidence_deg)`` pair.
+
+    Each group is shifted so its minimum becomes zero and scaled by the
+    range within that group. If the range is zero the values remain
+    unchanged. This preserves relative shapes while allowing a global
+    intensity scale factor to be fitted later.
+    """
+
+    df = df.copy()
+    df["intensity"] = pd.to_numeric(df["intensity"], errors="coerce")
+    df = df.dropna(subset=["intensity"])
+
+    grp = df.groupby(["wavelength_nm", "incidence_deg"])
+    baseline = grp["intensity"].transform("min")
+    max_val = grp["intensity"].transform("max")
+    scale = max_val - baseline
+    scale[scale <= 0] = 1.0
+
+    df["intensity"] = (df["intensity"] - baseline) / scale
+    return df
 
 
 def predict_dataframe(df: pd.DataFrame, params: ModelParams) -> np.ndarray:
@@ -133,7 +169,10 @@ def fit_parameters(
     optimise : dict
         Keys should have the form 'layer{i}_n', 'layer{i}_k', 'layer{i}_d'
         for each layer index ``i`` starting from 0, 'sub_n', 'sub_k' for the
-        substrate and 'scale' for the intensity scale factor.
+        substrate and 'scale' for the intensity scale factor. Additional keys
+        include 'offset' for a constant intensity offset, 'polarizer_deg' for
+        the polarisation plane, 'inc_offset' for an incidence angle offset and
+        'an_offset' for an analyzer angle offset.
     bounds : dict, optional
         Mapping from the same keys as ``optimise`` to ``(min, max)`` tuples.
         If omitted, reasonable defaults are used.
@@ -191,6 +230,30 @@ def fit_parameters(
         bounds_lo.append(lo)
         bounds_hi.append(hi)
         path.append(("scale",))
+    if optimise.get("offset", False):
+        x0.append(params.intensity_offset)
+        lo, hi = _get_bounds("offset", (-np.inf, np.inf))
+        bounds_lo.append(lo)
+        bounds_hi.append(hi)
+        path.append(("offset",))
+    if optimise.get("polarizer_deg", False):
+        x0.append(params.polarizer_deg)
+        lo, hi = _get_bounds("polarizer_deg", (0.0, 180.0))
+        bounds_lo.append(lo)
+        bounds_hi.append(hi)
+        path.append(("polarizer_deg",))
+    if optimise.get("inc_offset", False):
+        x0.append(params.incidence_offset_deg)
+        lo, hi = _get_bounds("inc_offset", (-10.0, 10.0))
+        bounds_lo.append(lo)
+        bounds_hi.append(hi)
+        path.append(("inc_offset",))
+    if optimise.get("an_offset", False):
+        x0.append(params.analyzer_offset_deg)
+        lo, hi = _get_bounds("an_offset", (-10.0, 10.0))
+        bounds_lo.append(lo)
+        bounds_hi.append(hi)
+        path.append(("an_offset",))
 
     def unpack(x, p: ModelParams) -> ModelParams:
         p = ModelParams(
@@ -199,6 +262,10 @@ def fit_parameters(
             n_sub=p.n_sub,
             k_sub=p.k_sub,
             intensity_scale=p.intensity_scale,
+            intensity_offset=p.intensity_offset,
+            polarizer_deg=p.polarizer_deg,
+            incidence_offset_deg=p.incidence_offset_deg,
+            analyzer_offset_deg=p.analyzer_offset_deg,
         )
         for val, entry in zip(x, path):
             if entry[0] == "layer":
@@ -215,8 +282,16 @@ def fit_parameters(
                     p.n_sub = val
                 else:
                     p.k_sub = val
-            else:  # scale
+            elif entry[0] == "scale":
                 p.intensity_scale = val
+            elif entry[0] == "offset":
+                p.intensity_offset = val
+            elif entry[0] == "polarizer_deg":
+                p.polarizer_deg = val
+            elif entry[0] == "inc_offset":
+                p.incidence_offset_deg = val
+            elif entry[0] == "an_offset":
+                p.analyzer_offset_deg = val
         return p
 
     def residual(x):
@@ -228,3 +303,22 @@ def fit_parameters(
     final_params = unpack(result.x, params)
     rmse = np.sqrt(np.mean(residual(result.x) ** 2))
     return final_params, rmse
+
+
+def calibrate_system(
+    df: pd.DataFrame,
+    params: ModelParams,
+    optimise: Optional[Dict[str, bool]] = None,
+    bounds: Optional[Dict[str, Tuple[float, float]]] = None,
+) -> Tuple[ModelParams, float]:
+    """Determine system angle offsets using a reference sample."""
+    if optimise is None:
+        optimise = {
+            "polarizer_deg": True,
+            "inc_offset": True,
+            "an_offset": True,
+            "offset": True,
+            "scale": True,
+        }
+    grouped = group_measurements(df)
+    return fit_parameters(grouped, params, optimise, bounds)
