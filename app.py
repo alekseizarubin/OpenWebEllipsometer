@@ -38,13 +38,18 @@ data_edit = st.data_editor(
 )
 st.session_state["meas_df"] = data_edit
 
-uploaded = st.file_uploader("Upload measurement TSV", type="tsv", key="uploader")
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+
+uploaded = st.file_uploader(
+    "Upload measurement TSV", type="tsv", key=f"uploader_{st.session_state.uploader_key}"
+)
 if uploaded is not None:
     df_up = pd.read_csv(uploaded, sep="\t", decimal=".")
     st.session_state["meas_df"] = pd.concat(
         [st.session_state["meas_df"], df_up], ignore_index=True
     )
-    st.session_state["uploader"] = None
+    st.session_state["uploader_key"] += 1
     _rerun()
 
 df = st.session_state["meas_df"].copy()
