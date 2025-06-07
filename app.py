@@ -67,6 +67,8 @@ st.dataframe(grouped)
 st.sidebar.header("Model parameters")
 
 n_before = st.sidebar.number_input("n before film", value=1.0)
+scale_val = st.sidebar.number_input("intensity scale", value=1.0)
+opt_scale = st.sidebar.checkbox("fit intensity scale", value=False)
 
 if "layers" not in st.session_state:
     st.session_state["layers"] = []
@@ -80,6 +82,7 @@ if col_remove.button("Remove layer") and st.session_state["layers"]:
     _rerun()
 
 optimise = {}
+bounds = {}
 for i, layer in enumerate(st.session_state["layers"]):
     with st.sidebar.expander(f"Layer {i + 1}"):
         n_val = st.number_input("n", value=layer.n, key=f"n_{i}")
@@ -94,8 +97,20 @@ for i, layer in enumerate(st.session_state["layers"]):
             key=f"af_{i}",
         )
         opt_n = st.checkbox("fit n", value=False, key=f"opt_n_{i}")
+        if opt_n:
+            n_min = st.number_input("n min", value=0.0, key=f"n_min_{i}")
+            n_max = st.number_input("n max", value=10.0, key=f"n_max_{i}")
+            bounds[f"layer{i}_n"] = (n_min, n_max)
         opt_k = st.checkbox("fit k", value=False, key=f"opt_k_{i}")
+        if opt_k:
+            k_min = st.number_input("k min", value=0.0, key=f"k_min_{i}")
+            k_max = st.number_input("k max", value=10.0, key=f"k_max_{i}")
+            bounds[f"layer{i}_k"] = (k_min, k_max)
         opt_d = st.checkbox("fit thickness", value=False, key=f"opt_d_{i}")
+        if opt_d:
+            d_min = st.number_input("thickness min", value=0.0, key=f"d_min_{i}")
+            d_max = st.number_input("thickness max", value=1000.0, key=f"d_max_{i}")
+            bounds[f"layer{i}_d"] = (d_min, d_max)
         st.session_state["layers"][i] = Layer(n_val, k_val, d_val, af_val)
         optimise[f"layer{i}_n"] = opt_n
         optimise[f"layer{i}_k"] = opt_k
@@ -105,20 +120,34 @@ with st.sidebar.expander("Substrate"):
     n_sub = st.number_input("substrate n", value=1.45)
     k_sub = st.number_input("substrate k", value=0.0)
     opt_n_sub = st.checkbox("fit substrate n", value=False)
+    if opt_n_sub:
+        sub_n_min = st.number_input("sub n min", value=0.0)
+        sub_n_max = st.number_input("sub n max", value=10.0)
+        bounds["sub_n"] = (sub_n_min, sub_n_max)
     opt_k_sub = st.checkbox("fit substrate k", value=False)
+    if opt_k_sub:
+        sub_k_min = st.number_input("sub k min", value=0.0)
+        sub_k_max = st.number_input("sub k max", value=10.0)
+        bounds["sub_k"] = (sub_k_min, sub_k_max)
 
 params = ModelParams(
     n_before=n_before,
     layers=st.session_state["layers"],
     n_sub=n_sub,
     k_sub=k_sub,
+    intensity_scale=scale_val,
 )
 
 optimise["sub_n"] = opt_n_sub
 optimise["sub_k"] = opt_k_sub
+optimise["scale"] = opt_scale
+if opt_scale:
+    scale_min = st.sidebar.number_input("scale min", value=0.0)
+    scale_max = st.sidebar.number_input("scale max", value=100000.0)
+    bounds["scale"] = (scale_min, scale_max)
 
 if st.button("Start optimisation"):
-    fitted, rmse = fit_parameters(grouped, params, optimise)
+    fitted, rmse = fit_parameters(grouped, params, optimise, bounds)
     st.subheader("Fit results")
     for i, layer in enumerate(fitted.layers):
         st.write(f"layer {i + 1} n: {layer.n:.4f}")

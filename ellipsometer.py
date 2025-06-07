@@ -24,6 +24,7 @@ class ModelParams:
     layers: List[Layer] = field(default_factory=list)
     n_sub: float = 1.5
     k_sub: float = 0.0
+    intensity_scale: float = 1.0
 
     def substrate_n(self) -> complex:
         return complex(self.n_sub, self.k_sub)
@@ -91,7 +92,7 @@ def analyzer_intensity(wl_nm: float, inc_deg: float, analyzer_deg: float, params
 
     A = np.deg2rad(analyzer_deg)
     E = r_s * np.cos(A) + r_p * np.sin(A)
-    return np.abs(E) ** 2
+    return params.intensity_scale * (np.abs(E) ** 2)
 
 
 def group_measurements(df: pd.DataFrame) -> pd.DataFrame:
@@ -115,7 +116,12 @@ def predict_dataframe(df: pd.DataFrame, params: ModelParams) -> np.ndarray:
     return np.asarray(pred)
 
 
-def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bool]) -> Tuple[ModelParams, float]:
+def fit_parameters(
+    df: pd.DataFrame,
+    params: ModelParams,
+    optimise: Dict[str, bool],
+    bounds: Optional[Dict[str, Tuple[float, float]]] = None,
+) -> Tuple[ModelParams, float]:
     """Fit unknown parameters using least squares.
 
     Parameters
@@ -125,8 +131,12 @@ def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bo
     params : ModelParams
         Initial parameters. Parameters not marked for optimisation are fixed.
     optimise : dict
-        Keys should have the form 'layer{i}_n', 'layer{i}_k', 'layer{i}_d' for
-        each layer index i starting from 0, and 'sub_n', 'sub_k' for substrate.
+        Keys should have the form 'layer{i}_n', 'layer{i}_k', 'layer{i}_d'
+        for each layer index ``i`` starting from 0, 'sub_n', 'sub_k' for the
+        substrate and 'scale' for the intensity scale factor.
+    bounds : dict, optional
+        Mapping from the same keys as ``optimise`` to ``(min, max)`` tuples.
+        If omitted, reasonable defaults are used.
     Returns
     -------
     ModelParams
@@ -139,32 +149,48 @@ def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bo
     bounds_hi = []
     path = []
 
+    def _get_bounds(key: str, default: Tuple[float, float]) -> Tuple[float, float]:
+        if bounds and key in bounds:
+            return bounds[key]
+        return default
+
     for i, layer in enumerate(params.layers):
         if optimise.get(f"layer{i}_n", False):
             x0.append(layer.n)
-            bounds_lo.append(0)
-            bounds_hi.append(5)
+            lo, hi = _get_bounds(f"layer{i}_n", (0.0, np.inf))
+            bounds_lo.append(lo)
+            bounds_hi.append(hi)
             path.append(("layer", i, "n"))
         if optimise.get(f"layer{i}_k", False):
             x0.append(layer.k)
-            bounds_lo.append(0)
-            bounds_hi.append(5)
+            lo, hi = _get_bounds(f"layer{i}_k", (0.0, np.inf))
+            bounds_lo.append(lo)
+            bounds_hi.append(hi)
             path.append(("layer", i, "k"))
         if optimise.get(f"layer{i}_d", False):
             x0.append(layer.thickness_nm)
-            bounds_lo.append(0)
-            bounds_hi.append(1000)
+            lo, hi = _get_bounds(f"layer{i}_d", (0.0, 1000.0))
+            bounds_lo.append(lo)
+            bounds_hi.append(hi)
             path.append(("layer", i, "d"))
     if optimise.get("sub_n", False):
         x0.append(params.n_sub)
-        bounds_lo.append(0)
-        bounds_hi.append(5)
+        lo, hi = _get_bounds("sub_n", (0.0, np.inf))
+        bounds_lo.append(lo)
+        bounds_hi.append(hi)
         path.append(("sub", "n"))
     if optimise.get("sub_k", False):
         x0.append(params.k_sub)
-        bounds_lo.append(0)
-        bounds_hi.append(5)
+        lo, hi = _get_bounds("sub_k", (0.0, np.inf))
+        bounds_lo.append(lo)
+        bounds_hi.append(hi)
         path.append(("sub", "k"))
+    if optimise.get("scale", False):
+        x0.append(params.intensity_scale)
+        lo, hi = _get_bounds("scale", (0.0, np.inf))
+        bounds_lo.append(lo)
+        bounds_hi.append(hi)
+        path.append(("scale",))
 
     def unpack(x, p: ModelParams) -> ModelParams:
         p = ModelParams(
@@ -172,6 +198,7 @@ def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bo
             layers=[Layer(l.n, l.k, l.thickness_nm, l.air_fraction) for l in p.layers],
             n_sub=p.n_sub,
             k_sub=p.k_sub,
+            intensity_scale=p.intensity_scale,
         )
         for val, entry in zip(x, path):
             if entry[0] == "layer":
@@ -188,6 +215,8 @@ def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bo
                     p.n_sub = val
                 else:
                     p.k_sub = val
+            else:  # scale
+                p.intensity_scale = val
         return p
 
     def residual(x):

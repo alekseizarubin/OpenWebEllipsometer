@@ -37,7 +37,7 @@ The measurement table must contain the following columns:
 - `analyzer_deg` – analyzer rotation angle (0 means polarization orthogonal to the incoming one)
 - `intensity` – measured signal level
 
-Rows can be added manually via the interface or you can upload a TSV file with these columns. The file should use a dot (`.`) as the decimal separator.
+Rows can be added manually via the interface or you can upload a TSV file with these columns. The file should use a dot (`.`) as the decimal separator. The application assumes intensities are normalised, but you may also fit a scaling factor when providing raw detector counts.
 
 ## Usage
 
@@ -45,3 +45,11 @@ Rows can be added manually via the interface or you can upload a TSV file with t
 2. Enter or upload the measurement table.
 3. Specify the initial optical parameters and mark which ones should be optimised.
 4. Press "Start optimisation". The fitted parameters and the model's root mean squared deviation will be displayed.
+
+### Parameter bounds and intensity scale
+
+Each optimised value can have custom lower and upper bounds. These bounds are
+configured in the sidebar next to the corresponding optimisation checkbox. The
+application also provides an **intensity scale** parameter. When fitting raw
+detector counts that are not normalised to the incident power, enable optimisation
+of this scale factor so the model can match the measurement units.
