@@ -1,7 +1,6 @@
 # OpenWebEllipsometer
 
 Streamlit-based application for fitting thin-film optical parameters from analyzer intensity measurements.
-It now supports setting the polariser angle, intensity offsets and calibration of systematic angle errors.
 
 ## Installation
 
@@ -38,13 +37,7 @@ The measurement table must contain the following columns:
 - `analyzer_deg` – analyzer rotation angle (0 means polarization orthogonal to the incoming one)
 - `intensity` – measured signal level
 
-The application also allows setting the angle between the incidence plane and
-the polarisation direction of the incoming light. This angle can be optimised
-along with a constant offset for the analyzer and incidence angles during
-calibration.
-
 Rows can be added manually via the interface or you can upload a TSV file with these columns. The file should use a dot (`.`) as the decimal separator. The application assumes intensities are normalised, but you may also fit a scaling factor when providing raw detector counts.
-If needed the helper ``normalise_measurements`` can rescale uploaded data to the 0–1 range.
 
 ## Usage
 
@@ -59,11 +52,4 @@ Each optimised value can have custom lower and upper bounds. These bounds are
 configured in the sidebar next to the corresponding optimisation checkbox. The
 application also provides an **intensity scale** parameter. When fitting raw
 detector counts that are not normalised to the incident power, enable optimisation
-of this scale factor so the model can match the measurement units. An additional
-offset parameter accounts for detector background.
-
-### Calibration
-
-Use ``calibrate_system`` with a sample of known optical properties to determine
-systematic offsets for the polariser, incidence and analyzer angles. The
-resulting parameters can then be used for subsequent measurements.
+of this scale factor so the model can match the measurement units.
