@@ -91,6 +91,11 @@ def analyzer_intensity(wl_nm: float, inc_deg: float, analyzer_deg: float, params
 
 def group_measurements(df: pd.DataFrame) -> pd.DataFrame:
     """Group measurement rows and compute averages and extremes."""
+    # ensure intensity values are numeric to avoid aggregation errors
+    df = df.copy()
+    df["intensity"] = pd.to_numeric(df["intensity"], errors="coerce")
+    df = df.dropna(subset=["intensity"])
+
     grouped = df.groupby(["wavelength_nm", "incidence_deg", "analyzer_deg"])
     out = grouped["intensity"].agg(["mean", "min", "max"]).reset_index()
     out = out.rename(columns={"mean": "intensity_mean", "min": "intensity_min", "max": "intensity_max"})
