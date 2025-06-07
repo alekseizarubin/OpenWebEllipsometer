@@ -9,9 +9,14 @@ class Layer:
     n: float
     k: float = 0.0
     thickness_nm: float = 0.0
+    air_fraction: float = 0.0
 
     def complex_n(self) -> complex:
-        return complex(self.n, self.k)
+        n_comp = complex(self.n, self.k)
+        if self.air_fraction > 0:
+            n_air = complex(1.0, 0.0)
+            n_comp = self.air_fraction * n_air + (1 - self.air_fraction) * n_comp
+        return n_comp
 
 @dataclass
 class ModelParams:
@@ -120,7 +125,8 @@ def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bo
     params : ModelParams
         Initial parameters. Parameters not marked for optimisation are fixed.
     optimise : dict
-        Dictionary with keys 'layer_n', 'layer_k', 'layer_d', 'sub_n', 'sub_k'.
+        Keys should have the form 'layer{i}_n', 'layer{i}_k', 'layer{i}_d' for
+        each layer index i starting from 0, and 'sub_n', 'sub_k' for substrate.
     Returns
     -------
     ModelParams
@@ -133,21 +139,22 @@ def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bo
     bounds_hi = []
     path = []
 
-    if optimise.get("layer_n", False):
-        x0.append(params.layers[0].n)
-        bounds_lo.append(0)
-        bounds_hi.append(5)
-        path.append(("layer", "n"))
-    if optimise.get("layer_k", False):
-        x0.append(params.layers[0].k)
-        bounds_lo.append(0)
-        bounds_hi.append(5)
-        path.append(("layer", "k"))
-    if optimise.get("layer_d", False):
-        x0.append(params.layers[0].thickness_nm)
-        bounds_lo.append(0)
-        bounds_hi.append(1000)
-        path.append(("layer", "d"))
+    for i, layer in enumerate(params.layers):
+        if optimise.get(f"layer{i}_n", False):
+            x0.append(layer.n)
+            bounds_lo.append(0)
+            bounds_hi.append(5)
+            path.append(("layer", i, "n"))
+        if optimise.get(f"layer{i}_k", False):
+            x0.append(layer.k)
+            bounds_lo.append(0)
+            bounds_hi.append(5)
+            path.append(("layer", i, "k"))
+        if optimise.get(f"layer{i}_d", False):
+            x0.append(layer.thickness_nm)
+            bounds_lo.append(0)
+            bounds_hi.append(1000)
+            path.append(("layer", i, "d"))
     if optimise.get("sub_n", False):
         x0.append(params.n_sub)
         bounds_lo.append(0)
@@ -162,18 +169,20 @@ def fit_parameters(df: pd.DataFrame, params: ModelParams, optimise: Dict[str, bo
     def unpack(x, p: ModelParams) -> ModelParams:
         p = ModelParams(
             n_before=p.n_before,
-            layers=[Layer(layer.n, layer.k, layer.thickness_nm) for layer in p.layers],
+            layers=[Layer(l.n, l.k, l.thickness_nm, l.air_fraction) for l in p.layers],
             n_sub=p.n_sub,
             k_sub=p.k_sub,
         )
         for val, entry in zip(x, path):
             if entry[0] == "layer":
-                if entry[1] == "n":
-                    p.layers[0].n = val
-                elif entry[1] == "k":
-                    p.layers[0].k = val
+                idx = entry[1]
+                field = entry[2]
+                if field == "n":
+                    p.layers[idx].n = val
+                elif field == "k":
+                    p.layers[idx].k = val
                 else:
-                    p.layers[0].thickness_nm = val
+                    p.layers[idx].thickness_nm = val
             elif entry[0] == "sub":
                 if entry[1] == "n":
                     p.n_sub = val
