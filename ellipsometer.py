@@ -122,14 +122,24 @@ def group_measurements(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalise_measurements(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalise intensity values to the [0, 1] range."""
+    """Normalise intensities per ``(wavelength_nm, incidence_deg)`` pair.
+
+    Each group is shifted so its minimum becomes zero and scaled by the
+    range within that group. If the range is zero the values remain
+    unchanged. This preserves relative shapes while allowing a global
+    intensity scale factor to be fitted later.
+    """
+
     df = df.copy()
     df["intensity"] = pd.to_numeric(df["intensity"], errors="coerce")
     df = df.dropna(subset=["intensity"])
-    baseline = df["intensity"].min()
-    scale = df["intensity"].max() - baseline
-    if scale <= 0:
-        scale = 1.0
+
+    grp = df.groupby(["wavelength_nm", "incidence_deg"])
+    baseline = grp["intensity"].transform("min")
+    max_val = grp["intensity"].transform("max")
+    scale = max_val - baseline
+    scale[scale <= 0] = 1.0
+
     df["intensity"] = (df["intensity"] - baseline) / scale
     return df
 

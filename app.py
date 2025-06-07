@@ -192,6 +192,11 @@ if st.button("Start optimisation"):
         st.write(f"layer {i + 1} thickness [nm]: {layer.thickness_nm:.2f}")
     st.write(f"substrate n: {fitted.n_sub:.4f}")
     st.write(f"substrate k: {fitted.k_sub:.4f}")
+    st.write(f"intensity scale: {fitted.intensity_scale:.4f}")
+    st.write(f"intensity offset: {fitted.intensity_offset:.4f}")
+    st.write(f"polariser angle [deg]: {fitted.polarizer_deg:.2f}")
+    st.write(f"incidence offset [deg]: {fitted.incidence_offset_deg:.2f}")
+    st.write(f"analyser offset [deg]: {fitted.analyzer_offset_deg:.2f}")
     st.write(f"RMSE: {rmse:.6f}")
 
     preds = predict_dataframe(grouped, fitted)

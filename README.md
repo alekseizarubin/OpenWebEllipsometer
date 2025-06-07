@@ -44,7 +44,9 @@ along with a constant offset for the analyzer and incidence angles during
 calibration.
 
 Rows can be added manually via the interface or you can upload a TSV file with these columns. The file should use a dot (`.`) as the decimal separator. The application assumes intensities are normalised, but you may also fit a scaling factor when providing raw detector counts.
-If needed the helper ``normalise_measurements`` can rescale uploaded data to the 0–1 range.
+If needed the helper ``normalise_measurements`` can rescale uploaded data. It shifts each
+``(wavelength_nm, incidence_deg)`` pair so the minimum becomes zero and scales
+the range to one.
 
 ## Usage
 
