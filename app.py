@@ -38,10 +38,13 @@ data_edit = st.data_editor(
 )
 st.session_state["meas_df"] = data_edit
 
-uploaded = st.file_uploader("Upload measurement TSV", type="tsv")
+uploaded = st.file_uploader("Upload measurement TSV", type="tsv", key="uploader")
 if uploaded is not None:
     df_up = pd.read_csv(uploaded, sep="\t", decimal=".")
-    st.session_state["meas_df"] = pd.concat([st.session_state["meas_df"], df_up])
+    st.session_state["meas_df"] = pd.concat(
+        [st.session_state["meas_df"], df_up], ignore_index=True
+    )
+    st.session_state["uploader"] = None
     _rerun()
 
 df = st.session_state["meas_df"].copy()
@@ -60,13 +63,38 @@ st.sidebar.header("Model parameters")
 
 n_before = st.sidebar.number_input("n before film", value=1.0)
 
-with st.sidebar.expander("Thin film"):
-    n_layer = st.number_input("film n", value=1.7)
-    k_layer = st.number_input("film k", value=0.0)
-    d_layer = st.number_input("thickness, nm", value=50.0)
-    opt_n_layer = st.checkbox("fit n", value=False)
-    opt_k_layer = st.checkbox("fit k", value=False)
-    opt_d_layer = st.checkbox("fit thickness", value=False)
+if "layers" not in st.session_state:
+    st.session_state["layers"] = []
+
+col_add, col_remove = st.sidebar.columns(2)
+if col_add.button("Add layer"):
+    st.session_state["layers"].append(Layer(1.5, 0.0, 50.0))
+    _rerun()
+if col_remove.button("Remove layer") and st.session_state["layers"]:
+    st.session_state["layers"].pop()
+    _rerun()
+
+optimise = {}
+for i, layer in enumerate(st.session_state["layers"]):
+    with st.sidebar.expander(f"Layer {i + 1}"):
+        n_val = st.number_input("n", value=layer.n, key=f"n_{i}")
+        k_val = st.number_input("k", value=layer.k, key=f"k_{i}")
+        d_val = st.number_input("thickness nm", value=layer.thickness_nm, key=f"d_{i}")
+        af_val = st.number_input(
+            "air fraction",
+            value=layer.air_fraction,
+            min_value=0.0,
+            max_value=1.0,
+            step=0.05,
+            key=f"af_{i}",
+        )
+        opt_n = st.checkbox("fit n", value=False, key=f"opt_n_{i}")
+        opt_k = st.checkbox("fit k", value=False, key=f"opt_k_{i}")
+        opt_d = st.checkbox("fit thickness", value=False, key=f"opt_d_{i}")
+        st.session_state["layers"][i] = Layer(n_val, k_val, d_val, af_val)
+        optimise[f"layer{i}_n"] = opt_n
+        optimise[f"layer{i}_k"] = opt_k
+        optimise[f"layer{i}_d"] = opt_d
 
 with st.sidebar.expander("Substrate"):
     n_sub = st.number_input("substrate n", value=1.45)
@@ -76,25 +104,21 @@ with st.sidebar.expander("Substrate"):
 
 params = ModelParams(
     n_before=n_before,
-    layers=[Layer(n_layer, k_layer, d_layer)],
+    layers=st.session_state["layers"],
     n_sub=n_sub,
     k_sub=k_sub,
 )
 
-optimise = {
-    "layer_n": opt_n_layer,
-    "layer_k": opt_k_layer,
-    "layer_d": opt_d_layer,
-    "sub_n": opt_n_sub,
-    "sub_k": opt_k_sub,
-}
+optimise["sub_n"] = opt_n_sub
+optimise["sub_k"] = opt_k_sub
 
 if st.button("Start optimisation"):
     fitted, rmse = fit_parameters(grouped, params, optimise)
     st.subheader("Fit results")
-    st.write(f"film n: {fitted.layers[0].n:.4f}")
-    st.write(f"film k: {fitted.layers[0].k:.4f}")
-    st.write(f"film thickness [nm]: {fitted.layers[0].thickness_nm:.2f}")
+    for i, layer in enumerate(fitted.layers):
+        st.write(f"layer {i + 1} n: {layer.n:.4f}")
+        st.write(f"layer {i + 1} k: {layer.k:.4f}")
+        st.write(f"layer {i + 1} thickness [nm]: {layer.thickness_nm:.2f}")
     st.write(f"substrate n: {fitted.n_sub:.4f}")
     st.write(f"substrate k: {fitted.k_sub:.4f}")
     st.write(f"RMSE: {rmse:.6f}")
