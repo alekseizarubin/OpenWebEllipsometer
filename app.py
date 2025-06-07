@@ -1,41 +1,90 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import refnx.dataset as rds
-from refnx.reflect import SLD, Layer, Structure, Objective, ReflectModel
-from scipy.optimize import DifferentialEvolution
+from ellipsometer import Layer, ModelParams, group_measurements, predict_dataframe, fit_parameters
 
 st.title("DIY-Ellipsometry fitter")
 
-uploaded = st.file_uploader("Загрузите CSV (λ, Ψ, Δ)", type="csv")
-if uploaded:
-    data = pd.read_csv(uploaded)
-    lam = data.iloc[:,0].to_numpy()*1e-9        # → м
-    psi = np.deg2rad(data.iloc[:,1])
-    delta = np.deg2rad(data.iloc[:,2])
-    # --- модель слоя: подложка стекло / плёнка / воздух ---
-    n_sub = st.number_input("n подложки", 1.45)
-    d_layer = st.number_input("Толщина плёнки, нм", 50.0)
-    n_layer = st.number_input("n плёнки @ 550 нм", 1.70)
-    k_layer = st.number_input("k плёнки @ 550 нм", 0.05)
+# ---------------------------------------------------------------------------
+# Data input
+# ---------------------------------------------------------------------------
 
-    # Собираем структуру refnx
-    sub = SLD(n_sub)(0)
-    film = SLD(complex(n_layer, k_layer))(d_layer)
-    air = SLD(1)(0)
-    structure = Structure([sub, film, air])
+if "meas_df" not in st.session_state:
+    st.session_state["meas_df"] = pd.DataFrame(
+        columns=["wavelength_nm", "incidence_deg", "analyzer_deg", "intensity"]
+    )
 
-    # Строим модель Ψ/Δ
-    model = ReflectModel(structure, bkg=0, dq=0)
-    # ... здесь можно добавить Objective и оптимизацию ...
+data_edit = st.data_editor(
+    st.session_state["meas_df"],
+    num_rows="dynamic",
+    key="meas_table",
+    use_container_width=True,
+)
+st.session_state["meas_df"] = data_edit
 
-    st.subheader("Предпросмотр модели")
-    psi_calc, delta_calc = model(lam, output="psi_delta")
-    df_out = pd.DataFrame({
-        "λ (nm)": lam*1e9,
-        "Ψ експ [°]": np.rad2deg(psi),
-        "Ψ calc [°]": np.rad2deg(psi_calc),
-        "Δ експ [°]": np.rad2deg(delta),
-        "Δ calc [°]": np.rad2deg(delta_calc),
-    })
-    st.line_chart(df_out.set_index("λ (nm)"))
+uploaded = st.file_uploader("Upload measurement CSV", type="csv")
+if uploaded is not None:
+    df_up = pd.read_csv(uploaded)
+    st.session_state["meas_df"] = pd.concat([st.session_state["meas_df"], df_up])
+    st.experimental_rerun()
+
+df = st.session_state["meas_df"].copy()
+if df.empty:
+    st.stop()
+
+grouped = group_measurements(df)
+st.subheader("Summary data")
+st.dataframe(grouped)
+
+# ---------------------------------------------------------------------------
+# Model parameters
+# ---------------------------------------------------------------------------
+
+st.sidebar.header("Model parameters")
+
+n_before = st.sidebar.number_input("n before film", value=1.0)
+
+with st.sidebar.expander("Thin film"):
+    n_layer = st.number_input("film n", value=1.7)
+    k_layer = st.number_input("film k", value=0.0)
+    d_layer = st.number_input("thickness, nm", value=50.0)
+    opt_n_layer = st.checkbox("fit n", value=False)
+    opt_k_layer = st.checkbox("fit k", value=False)
+    opt_d_layer = st.checkbox("fit thickness", value=False)
+
+with st.sidebar.expander("Substrate"):
+    n_sub = st.number_input("substrate n", value=1.45)
+    k_sub = st.number_input("substrate k", value=0.0)
+    opt_n_sub = st.checkbox("fit substrate n", value=False)
+    opt_k_sub = st.checkbox("fit substrate k", value=False)
+
+params = ModelParams(
+    n_before=n_before,
+    layers=[Layer(n_layer, k_layer, d_layer)],
+    n_sub=n_sub,
+    k_sub=k_sub,
+)
+
+optimise = {
+    "layer_n": opt_n_layer,
+    "layer_k": opt_k_layer,
+    "layer_d": opt_d_layer,
+    "sub_n": opt_n_sub,
+    "sub_k": opt_k_sub,
+}
+
+if st.button("Start optimisation"):
+    fitted, rmse = fit_parameters(grouped, params, optimise)
+    st.subheader("Fit results")
+    st.write(f"film n: {fitted.layers[0].n:.4f}")
+    st.write(f"film k: {fitted.layers[0].k:.4f}")
+    st.write(f"film thickness [nm]: {fitted.layers[0].thickness_nm:.2f}")
+    st.write(f"substrate n: {fitted.n_sub:.4f}")
+    st.write(f"substrate k: {fitted.k_sub:.4f}")
+    st.write(f"RMSE: {rmse:.6f}")
+
+    preds = predict_dataframe(grouped, fitted)
+    df_out = grouped.copy()
+    df_out["model_intensity"] = preds
+    st.subheader("Measurements vs. model")
+    st.dataframe(df_out)
