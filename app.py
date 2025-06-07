@@ -5,6 +5,7 @@ from ellipsometer import (
     Layer,
     ModelParams,
     group_measurements,
+    normalise_measurements,
     predict_dataframe,
     fit_parameters,
 )
@@ -56,6 +57,10 @@ df = st.session_state["meas_df"].copy()
 if df.empty:
     st.stop()
 
+norm = st.sidebar.checkbox("normalise intensities", value=False)
+if norm:
+    df = normalise_measurements(df)
+
 grouped = group_measurements(df)
 st.subheader("Summary data")
 st.dataframe(grouped)
@@ -69,6 +74,14 @@ st.sidebar.header("Model parameters")
 n_before = st.sidebar.number_input("n before film", value=1.0)
 scale_val = st.sidebar.number_input("intensity scale", value=1.0)
 opt_scale = st.sidebar.checkbox("fit intensity scale", value=False)
+offset_val = st.sidebar.number_input("intensity offset", value=0.0)
+opt_offset = st.sidebar.checkbox("fit intensity offset", value=False)
+pol_angle = st.sidebar.number_input("polariser angle deg", value=45.0)
+opt_pol = st.sidebar.checkbox("fit polariser angle", value=False)
+inc_off = st.sidebar.number_input("incidence offset deg", value=0.0)
+opt_inc_off = st.sidebar.checkbox("fit incidence offset", value=False)
+an_off = st.sidebar.number_input("analyser offset deg", value=0.0)
+opt_an_off = st.sidebar.checkbox("fit analyser offset", value=False)
 
 if "layers" not in st.session_state:
     st.session_state["layers"] = []
@@ -136,15 +149,39 @@ params = ModelParams(
     n_sub=n_sub,
     k_sub=k_sub,
     intensity_scale=scale_val,
+    intensity_offset=offset_val,
+    polarizer_deg=pol_angle,
+    incidence_offset_deg=inc_off,
+    analyzer_offset_deg=an_off,
 )
 
 optimise["sub_n"] = opt_n_sub
 optimise["sub_k"] = opt_k_sub
 optimise["scale"] = opt_scale
+optimise["offset"] = opt_offset
+optimise["polarizer_deg"] = opt_pol
+optimise["inc_offset"] = opt_inc_off
+optimise["an_offset"] = opt_an_off
 if opt_scale:
     scale_min = st.sidebar.number_input("scale min", value=0.0)
     scale_max = st.sidebar.number_input("scale max", value=100000.0)
     bounds["scale"] = (scale_min, scale_max)
+if opt_offset:
+    off_min = st.sidebar.number_input("offset min", value=-1000.0)
+    off_max = st.sidebar.number_input("offset max", value=1000.0)
+    bounds["offset"] = (off_min, off_max)
+if opt_pol:
+    pol_min = st.sidebar.number_input("pol angle min", value=0.0)
+    pol_max = st.sidebar.number_input("pol angle max", value=90.0)
+    bounds["polarizer_deg"] = (pol_min, pol_max)
+if opt_inc_off:
+    inc_min = st.sidebar.number_input("inc offset min", value=-10.0)
+    inc_max = st.sidebar.number_input("inc offset max", value=10.0)
+    bounds["inc_offset"] = (inc_min, inc_max)
+if opt_an_off:
+    an_min = st.sidebar.number_input("an offset min", value=-10.0)
+    an_max = st.sidebar.number_input("an offset max", value=10.0)
+    bounds["an_offset"] = (an_min, an_max)
 
 if st.button("Start optimisation"):
     fitted, rmse = fit_parameters(grouped, params, optimise, bounds)
