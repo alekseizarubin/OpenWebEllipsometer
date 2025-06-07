@@ -37,7 +37,7 @@ The measurement table must contain the following columns:
 - `analyzer_deg` – analyzer rotation angle (0 means polarization orthogonal to the incoming one)
 - `intensity` – measured signal level
 
-Rows can be added manually via the interface or you can upload a CSV file with these columns.
+Rows can be added manually via the interface or you can upload a TSV file with these columns.
 
 ## Usage
 

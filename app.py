@@ -38,9 +38,9 @@ data_edit = st.data_editor(
 )
 st.session_state["meas_df"] = data_edit
 
-uploaded = st.file_uploader("Upload measurement CSV", type="csv")
+uploaded = st.file_uploader("Upload measurement TSV", type="tsv")
 if uploaded is not None:
-    df_up = pd.read_csv(uploaded)
+    df_up = pd.read_csv(uploaded, sep="\t")
     st.session_state["meas_df"] = pd.concat([st.session_state["meas_df"], df_up])
     _rerun()
 
