@@ -22,7 +22,7 @@ data_edit = st.data_editor(
 )
 st.session_state["meas_df"] = data_edit
 
-uploaded = st.file_uploader("Загрузите CSV таблицу измерений", type="csv")
+uploaded = st.file_uploader("Upload measurement CSV", type="csv")
 if uploaded is not None:
     df_up = pd.read_csv(uploaded)
     st.session_state["meas_df"] = pd.concat([st.session_state["meas_df"], df_up])
@@ -33,30 +33,30 @@ if df.empty:
     st.stop()
 
 grouped = group_measurements(df)
-st.subheader("Сводные данные")
+st.subheader("Summary data")
 st.dataframe(grouped)
 
 # ---------------------------------------------------------------------------
 # Model parameters
 # ---------------------------------------------------------------------------
 
-st.sidebar.header("Параметры модели")
+st.sidebar.header("Model parameters")
 
-n_before = st.sidebar.number_input("n до плёнки", value=1.0)
+n_before = st.sidebar.number_input("n before film", value=1.0)
 
-with st.sidebar.expander("Тонкая плёнка"):
-    n_layer = st.number_input("n плёнки", value=1.7)
-    k_layer = st.number_input("k плёнки", value=0.0)
-    d_layer = st.number_input("толщина, нм", value=50.0)
-    opt_n_layer = st.checkbox("подгонять n", value=False)
-    opt_k_layer = st.checkbox("подгонять k", value=False)
-    opt_d_layer = st.checkbox("подгонять толщину", value=False)
+with st.sidebar.expander("Thin film"):
+    n_layer = st.number_input("film n", value=1.7)
+    k_layer = st.number_input("film k", value=0.0)
+    d_layer = st.number_input("thickness, nm", value=50.0)
+    opt_n_layer = st.checkbox("fit n", value=False)
+    opt_k_layer = st.checkbox("fit k", value=False)
+    opt_d_layer = st.checkbox("fit thickness", value=False)
 
-with st.sidebar.expander("Подложка"):
-    n_sub = st.number_input("n подложки", value=1.45)
-    k_sub = st.number_input("k подложки", value=0.0)
-    opt_n_sub = st.checkbox("подгонять n подложки", value=False)
-    opt_k_sub = st.checkbox("подгонять k подложки", value=False)
+with st.sidebar.expander("Substrate"):
+    n_sub = st.number_input("substrate n", value=1.45)
+    k_sub = st.number_input("substrate k", value=0.0)
+    opt_n_sub = st.checkbox("fit substrate n", value=False)
+    opt_k_sub = st.checkbox("fit substrate k", value=False)
 
 params = ModelParams(
     n_before=n_before,
@@ -73,18 +73,18 @@ optimise = {
     "sub_k": opt_k_sub,
 }
 
-if st.button("Запустить оптимизацию"):
+if st.button("Start optimisation"):
     fitted, rmse = fit_parameters(grouped, params, optimise)
-    st.subheader("Результаты подгонки")
-    st.write(f"n плёнки: {fitted.layers[0].n:.4f}")
-    st.write(f"k плёнки: {fitted.layers[0].k:.4f}")
-    st.write(f"толщина плёнки [нм]: {fitted.layers[0].thickness_nm:.2f}")
-    st.write(f"n подложки: {fitted.n_sub:.4f}")
-    st.write(f"k подложки: {fitted.k_sub:.4f}")
+    st.subheader("Fit results")
+    st.write(f"film n: {fitted.layers[0].n:.4f}")
+    st.write(f"film k: {fitted.layers[0].k:.4f}")
+    st.write(f"film thickness [nm]: {fitted.layers[0].thickness_nm:.2f}")
+    st.write(f"substrate n: {fitted.n_sub:.4f}")
+    st.write(f"substrate k: {fitted.k_sub:.4f}")
     st.write(f"RMSE: {rmse:.6f}")
 
     preds = predict_dataframe(grouped, fitted)
     df_out = grouped.copy()
     df_out["model_intensity"] = preds
-    st.subheader("Сравнение измерений и модели")
+    st.subheader("Measurements vs. model")
     st.dataframe(df_out)

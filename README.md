@@ -1,21 +1,21 @@
 # OpenWebEllipsometer
 
-Приложение на основе Streamlit для подгонки параметров оптических плёнок по данным измерений интенсивности после анализатора.
+Streamlit-based application for fitting thin-film optical parameters from analyzer intensity measurements.
 
-## Формат данных
+## Data format
 
-Таблица измерений должна содержать следующие столбцы:
+The measurement table must contain the following columns:
 
-- `wavelength_nm` – длина волны излучения в нанометрах;
-- `incidence_deg` – угол падения относительно нормали;
-- `analyzer_deg` – угол поворота анализатора (0 – поляризация, ортогональная исходной);
-- `intensity` – измеренный уровень сигнала.
+- `wavelength_nm` – wavelength in nanometers
+- `incidence_deg` – angle of incidence relative to the normal
+- `analyzer_deg` – analyzer rotation angle (0 means polarization orthogonal to the incoming one)
+- `intensity` – measured signal level
 
-Можно добавлять строки вручную через интерфейс или загрузить CSV‑файл с такими столбцами.
+Rows can be added manually via the interface or you can upload a CSV file with these columns.
 
-## Использование
+## Usage
 
-1. Запустите приложение командой `streamlit run app.py`.
-2. Введите или загрузите таблицу измерений.
-3. Задайте начальные оптические параметры и отметьте, какие из них нужно оптимизировать.
-4. Нажмите «Запустить оптимизацию». Будут выведены найденные параметры и среднеквадратичное отклонение модели от измерений.
+1. Run the application with `streamlit run app.py`.
+2. Enter or upload the measurement table.
+3. Specify the initial optical parameters and mark which ones should be optimised.
+4. Press "Start optimisation". The fitted parameters and the model's root mean squared deviation will be displayed.
