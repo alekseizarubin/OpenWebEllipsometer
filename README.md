@@ -2,6 +2,32 @@
 
 Streamlit-based application for fitting thin-film optical parameters from analyzer intensity measurements.
 
+## Installation
+
+Clone this repository and install the required Python packages. Below are two example setups using Conda or plain pip.
+
+### Using Conda
+
+```bash
+conda create -n openwebellipsometer python=3.10
+conda activate openwebellipsometer
+conda install -c conda-forge numpy pandas scipy streamlit
+```
+
+### Using Pip
+
+```bash
+python3 -m venv venv
+source venv/bin/activate  # on Windows use "venv\\Scripts\\activate"
+pip install numpy pandas scipy streamlit
+```
+
+Once the dependencies are installed, run the application from the repository root with:
+
+```bash
+streamlit run app.py
+```
+
 ## Data format
 
 The measurement table must contain the following columns:
