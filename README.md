@@ -69,3 +69,14 @@ offset parameter accounts for detector background.
 Use ``calibrate_system`` with a sample of known optical properties to determine
 systematic offsets for the polariser, incidence and analyzer angles. The
 resulting parameters can then be used for subsequent measurements.
+
+### Psi/Delta workflow
+
+For detailed analysis the optimisation can be split into two stages. First use
+``fit_psi_delta`` to determine the ellipsometric ``psi`` and ``delta`` values
+for every wavelength and angle from raw intensity scans. A calibration curve of
+the direct polariser--analyser transmission can be fitted with
+``calibrate_detector`` to account for detector linearity and background light.
+The resulting ``psi``/``delta`` table can then be fed into
+``fit_model_from_psi_delta`` to obtain optical constants and layer thicknesses
+with estimated 95% confidence intervals.
