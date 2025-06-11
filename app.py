@@ -184,7 +184,7 @@ if opt_an_off:
     bounds["an_offset"] = (an_min, an_max)
 
 if st.button("Start optimisation"):
-    fitted, rmse = fit_parameters(grouped, params, optimise, bounds)
+    fitted, rmse, ci = fit_parameters(grouped, params, optimise, bounds)
     st.subheader("Fit results")
     for i, layer in enumerate(fitted.layers):
         st.write(f"layer {i + 1} n: {layer.n:.4f}")
@@ -198,6 +198,9 @@ if st.button("Start optimisation"):
     st.write(f"incidence offset [deg]: {fitted.incidence_offset_deg:.2f}")
     st.write(f"analyser offset [deg]: {fitted.analyzer_offset_deg:.2f}")
     st.write(f"RMSE: {rmse:.6f}")
+    st.write("Confidence intervals (95%)")
+    for name, width in ci.items():
+        st.write(f"{name} ±{width:.4g}")
 
     preds = predict_dataframe(grouped, fitted)
     df_out = grouped.copy()
